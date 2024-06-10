@@ -23,32 +23,7 @@ type gui struct {
 	//Project Label
 	title binding.String
 	// directory *widget.Label
-}
-
-func makeBanner() fyne.CanvasObject {
-	toolbar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.HomeIcon(), func() {}),
-	)
-	logo := canvas.NewImageFromResource(resourceApexLogoPng)
-	logo.FillMode = canvas.ImageFillContain
-	return container.NewStack(toolbar, container.NewPadded(logo))
-}
-
-func (g *gui) makeGUI() fyne.CanvasObject {
-	top := makeBanner()
-	left := widget.NewLabel("Left")
-	right := widget.NewLabel("Right")
-
-	// content := widget.NewLabel("CONTENT")
-	directory := widget.NewLabelWithData(g.title)
-	// directory := canvas.NewLabel("Directory")
-	content := container.NewStack(canvas.NewRectangle(color.White), directory)
-
-	dividers := [3]fyne.CanvasObject{
-		widget.NewSeparator(), widget.NewSeparator(), widget.NewSeparator(),
-	}
-	objs := []fyne.CanvasObject{top, left, right, content, dividers[0], dividers[1], dividers[2]}
-	return container.New(newFysionLayout(top, left, right, content, dividers), objs...)
+	fileTree binding.URITree
 }
 
 func (g *gui) openProjectDialog() {
@@ -69,15 +44,37 @@ func (g *gui) openProjectDialog() {
 	}, g.win)
 }
 
+func (g *gui) makeBanner() fyne.CanvasObject {
+	title := canvas.NewText("App Creator", theme.ForegroundColor())
+	title.TextSize = 14
+	title.TextStyle = fyne.TextStyle{Bold: true}
+	g.title.AddListener(binding.NewDataListener(func() {
+		name, _ := g.title.Get()
+		if name == "" {
+			name = "App Creator"
+		}
+		title.Text = name
+		title.Refresh()
+	}))
+
+	home := widget.NewButtonWithIcon("", theme.HomeIcon(), func() {})
+	left := container.NewHBox(home, title)
+
+	logo := canvas.NewImageFromResource(resourceApexLogoPng)
+	logo.FillMode = canvas.ImageFillContain
+	
+	return container.NewStack(container.NewPadded(left), container.NewPadded(logo))
+}
+
 func (g *gui) makeCreateDetail(wizard dialogs.Wizard) fyne.CanvasObject {
-	homeDir, _ := os.UserHomeDir()
-	parent := storage.NewFileURI(homeDir)
+	projectDir, _ := os.Getwd()
+	parent := storage.NewFileURI(projectDir)
 	selectedDir, _ := storage.ListerForURI(parent)
 
 	name := widget.NewEntry()
 	name.Validator = func(s string) error {
 		if s == "" {
-			return errors.New("Name cannot be empty")
+			return errors.New("name cannot be empty")
 		}
 		return nil
 	}
@@ -112,6 +109,57 @@ func (g *gui) makeCreateDetail(wizard dialogs.Wizard) fyne.CanvasObject {
 	return form
 }
 
+func (g *gui) makeGUI() fyne.CanvasObject {
+	top := g.makeBanner()
+	g.fileTree = binding.NewURITree()
+	files := widget.NewTreeWithData(
+		g.fileTree, 
+		func(branch bool) fyne.CanvasObject {
+			return widget.NewLabel("Branch or file")
+		}, 
+		func(data binding.DataItem, branch bool, object fyne.CanvasObject) {
+			label := object.(*widget.Label)
+			uri, _ := data.(binding.URI).Get()
+			name := uri.Name()
+			label.SetText(name)
+			// if branch {
+			// 	label.SetText(data.(treeBranch).name)
+			// } else {
+			// 	label.SetText(data.(treeLeaf).name)
+			// }
+		},	
+	)
+	left := widget.NewAccordion(
+		widget.NewAccordionItem("Files", files),
+		widget.NewAccordionItem("Screens", widget.NewLabel("TODO Screens")),
+	)
+	left.Open(0)
+	left.MultiOpen = true
+
+
+	right := widget.NewRichTextFromMarkdown("## Settings\n\nThis is where you can configure your app")
+
+	// content := widget.NewLabel("CONTENT")
+	// directory := canvas.NewLabel("Directory")
+	// directory := widget.NewLabelWithData(g.title)
+	// name, _ := g.title.Get()
+
+	window := container.NewHBox(widget.NewLabel("App Preview Here"))
+	// window := container.newInnerWindow(name, "App Preview Here")
+	picker := widget.NewSelect([]string{"Design", "Code"}, func(s string) {
+			//TODO switch between design and code
+	})
+	picker.Selected = "Design"
+	preview := container.NewBorder(container.NewHBox(picker), nil, nil, nil, container.NewCenter(window))
+	content := container.NewStack(canvas.NewRectangle(color.White), container.NewPadded(preview))
+
+	dividers := [3]fyne.CanvasObject{
+		widget.NewSeparator(), widget.NewSeparator(), widget.NewSeparator(),
+	}
+	objs := []fyne.CanvasObject{top, left, right, content, dividers[0], dividers[1], dividers[2]}
+	return container.New(newFysionLayout(top, left, right, content, dividers), objs...)
+}
+
 func (g *gui) makeMenu() *fyne.MainMenu {
 	file := fyne.NewMenu("File",
 		fyne.NewMenuItem("Open Project", g.openProjectDialog),
@@ -119,20 +167,11 @@ func (g *gui) makeMenu() *fyne.MainMenu {
 	return fyne.NewMainMenu(file)
 }
 
-func (g *gui) openProject(dir fyne.ListableURI) {
-	name := dir.Path()
-
-	// Load the project
-	g.title.Set(name)
-}
-
 func (g *gui) showCreate(w fyne.Window) {
 	var wizard *dialogs.Wizard
 
 	// Show a dialog to create a new project
-	introText := widget.NewLabel(`Create a new project.
-	
-Or open an existing one.`)
+	introText := widget.NewLabel("Create a new project.\n\nOr open an existing one."	)
 	// End dialog in the intro text
 
 	// Buttons for open and create

@@ -17,6 +17,22 @@ func newFysionTheme() fyne.Theme {
 	return &fysionTheme{Theme: theme.DefaultTheme()}
 }
 
+func (t *fysionTheme) Font(style fyne.TextStyle) fyne.Resource {
+	if style.Symbol || style.Monospace {
+		return t.Theme.Font(style)
+	}
+
+	if style.Bold && style.Italic{	
+		return resourcePoppinsBoldItalicTtf
+	} else if style.Bold {
+		return resourcePoppinsBoldTtf
+	} else if style.Italic {
+		return resourcePoppinsItalicTtf
+	} else {
+		return resourcePoppinsRegularTtf
+	}
+}
+
 func (t *fysionTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
 	return t.Theme.Color(name, theme.VariantLight) // or theme.VariantDark
 }
